@@ -1,88 +1,91 @@
-// Define earthquakes plates GeoJSON url variable
-var earthquakesURL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson";
-
-// Create earthquake layerGroup
-var earthquakes = L.layerGroup();
-
-// Create tile layer
-var grayscaleMap = L.tileLayer("https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}", {
-  attribution: "© <a href='https://www.mapbox.com/about/maps/'>Mapbox</a> © <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a> <strong><a href='https://www.mapbox.com/map-feedback/' target='_blank'>Improve this map</a></strong>",
-  tileSize: 512,
-  maxZoom: 18,
-  zoomOffset: -1,
-  id: "mapbox/light-v10",
-  accessToken: API_KEY
+/*Setting the map to center around the middle of the United States and attaching a zoom level of 4 so that the continental United States is showing */
+const myMap = L.map("map", {
+    center: [37.09, -95.71],
+    zoom: 4
 });
 
-// Create the map, giving it the grayscaleMap and earthquakes layers to display on load
-var myMap = L.map("mapid", {
-  center: [
-    37.09, -95.71
-  ],
-  zoom: 2,
-  layers: [grayscaleMap, earthquakes]
-});
+/* Using Leaflet's street map to as the background for our analysis */
+const streetmap = L.tileLayer("https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}", {
+    attribution: "Map data &copy; <a href=\"https://www.openstreetmap.org/\">OpenStreetMap</a> contributors, <a href=\"https://creativecommons.org/licenses/by-sa/2.0/\">CC-BY-SA</a>, Imagery © <a href=\"https://www.mapbox.com/\">Mapbox</a>",
+    maxZoom: 18,
+    id: "mapbox/streets-v11",
+    accessToken: API_KEY
+}).addTo(myMap);
 
-d3.json(earthquakesURL, function(earthquakeData) {
-  // Determine the marker size by magnitude
-  function markerSize(magnitude) {
-    return magnitude * 4;
-  };
-  // Determine the marker color by depth
-  function chooseColor(depth) {
-    switch(true) {
-      case depth > 90:
-        return "red";
-      case depth > 70:
-        return "orangered";
-      case depth > 50:
-        return "orange";
-      case depth > 30:
-        return "gold";
-      case depth > 10:
-        return "yellow";
-      default:
-        return "lightgreen";
+
+/* This allows us to call in the URL for earthquakes in the past seven days and set it to the global variable URL.  If we want to change the dimensions of the data
+that we are pulling in, this would be the place to change that */
+
+var URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson"
+
+/* Bringing in the dataset and then placing markers with appropriate size and color related to the magnitude of the quake */
+d3.json(URL, function (data) {
+    let earthquakes = data.features;
+    //    console.log(earthquakes);
+    /*Sets up our color scheme for earthquakes */
+    let color = {
+        level1: "#3c0",
+        level2: "#9f6",
+        level3: "#fc3",
+        level4: "#f93",
+        level5: "#c60",
+        level6: "#c00"
     }
-  }
 
-  // Create a GeoJSON layer containing the features array
-  // Each feature a popup describing the place and time of the earthquake
-  L.geoJSON(earthquakeData, {
-    pointToLayer: function (feature, latlng) {
-      return L.circleMarker(latlng, 
-        // Set the style of the markers based on properties.mag
-        {
-          radius: markerSize(feature.properties.mag),
-          fillColor: chooseColor(feature.geometry.coordinates[2]),
-          fillOpacity: 0.7,
-          color: "black",
-          stroke: true,
-          weight: 0.5
+    /* For each of the earthquakes, we are now identifying the lat/long and assessing a severity color to the earthquake */
+
+    for (var i = 0; i < earthquakes.length; i++) {
+        let latitude = earthquakes[i].geometry.coordinates[1];
+        let longitude = earthquakes[i].geometry.coordinates[0];
+        let magnitude = earthquakes[i].properties.mag;
+        var fillColor;
+        if (magnitude > 5) {
+            fillColor = color.level6;
+        } else if (magnitude > 4) {
+            fillColor = color.level5;
+        } else if (magnitude > 3) {
+            fillColor = color.level4;
+        } else if (magnitude > 2) {
+            fillColor = color.level3;
+        } else if (magnitude > 1) {
+            fillColor = color.level2;
+        } else {
+            fillColor = color.level1;
         }
-      );
-    },
-    onEachFeature: function(feature, layer) {
-      layer.bindPopup("<h3>Location: " + feature.properties.place + "</h3><hr><p>Date: "
-      + new Date(feature.properties.time) + "</p><hr><p>Magnitude: " + feature.properties.mag + "</p>");
-    }
-  }).addTo(earthquakes);
-  // Sending our earthquakes layer to the createMap function
-  earthquakes.addTo(myMap);
 
-    // Add legend
-  var legend = L.control({position: "bottomright"});
-  legend.onAdd = function() {
-    var div = L.DomUtil.create("div", "info legend"),
-    depth = [-10, 10, 30, 50, 70, 90];
-    
-    div.innerHTML += "<h3 style='text-align: center'>Depth</h3>"
-  for (var i =0; i < depth.length; i++) {
-    div.innerHTML += 
-    '<i style="background:' + chooseColor(depth[i] + 1) + '"></i> ' +
-        depth[i] + (depth[i + 1] ? '&ndash;' + depth[i + 1] + '<br>' : '+');
-      }
-    return div;
-  };
-  legend.addTo(myMap);
-});
+        /* The radius of each circle will be determined on an exponential scale based on the size of the magnitude.
+         I chose to use exponential so that larger earthquakes will have a much higher radius than smaller earthquakes */
+        var epicenter = L.circleMarker([latitude, longitude], {
+            radius: magnitude ** 2,
+            color: "black",
+            fillColor: fillColor,
+            fillOpacity: 1,
+            weight: 1
+        });
+        epicenter.addTo(myMap);
+
+
+        /* Set up labels as a pop-up when we use the mouse to point to one of the circles */
+
+        epicenter.bindPopup("<h3> " + new Date(earthquakes[i].properties.time) + "</h3><h4>Magnitude: " + magnitude +
+            "<br>Location: " + earthquakes[i].properties.place + "</h4><br>");
+
+    }
+
+    /* Setting the legend to appear in the bottom right of our chart */
+    var legend = L.control({
+        position: 'bottomright'
+    });
+
+    /* Adding on the legend based off the color scheme we have */
+    legend.onAdd = function (color) {
+        var div = L.DomUtil.create('div', 'info legend');
+        var levels = ['>1', '1-2', '2-3', '3-4', '4-5', '5+'];
+        var colors = ['#3c0', '#9f6', '#fc3', '#f93', '#c60', '#c00']
+        for (var i = 0; i < levels.length; i++) {
+            div.innerHTML += '<i style="background:' + colors[i] + '"></i>' + levels[i] + '<br>';
+        }
+        return div;
+    }
+    legend.addTo(myMap);
+})
