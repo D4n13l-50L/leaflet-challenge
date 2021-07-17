@@ -1,7 +1,7 @@
 # Leaflet Homework - Visualizing Data with Leaflet
 
 
-Go to this link to view visualization
+To view the MAP click [this link](https://d4n13l-50l.github.io/leaflet-challenge.io/Leaflet-Step-1/index.html) 
 
 ## Background
 
